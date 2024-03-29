@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"cloud.google.com/go/pubsub"
+	_ "github.com/lib/pq"
 	"github.com/mailgun/mailgun-go/v4"
 	"github.com/rs/zerolog"
 )
@@ -17,24 +18,8 @@ type PubSubMessage struct {
 }
 
 type UserData struct {
-	Email      string `json:"email"`
-	VerifyLink string `json:"verifyLink"`
-	UserID     string `json:"userID"`
-}
-
-func updateVerificationStatus(ctx context.Context, userID string) error {
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
-	if err != nil {
-		// handle error
-	}
-	defer db.Close()
-
-	// Example SQL query to update verification status
-	_, err = db.ExecContext(ctx, "UPDATE verify_users SET email_verified = TRUE WHERE user_id = $1", userID)
-	if err != nil {
-		// handle error
-	}
-	return nil
+	Email string `json:"email"`
+	Token string `json:"token"`
 }
 
 func SendVerificationEmail(ctx context.Context, m pubsub.Message) error {
@@ -42,32 +27,45 @@ func SendVerificationEmail(ctx context.Context, m pubsub.Message) error {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	var userData UserData
-	if err := json.Unmarshal(m.Data, &userData); err != nil {
+	pubSubMsg := string(m.Data)
+
+	fmt.Println("Data: ", pubSubMsg)
+
+	// base64Data, err := base64.URLEncoding.DecodeString(pubSubMsg)
+
+	// fmt.Println("Base64Data", string(base64Data))
+
+	// if err != nil {
+	// 	fmt.Println("Error decoding string:", err)
+	// 	return err
+	// }
+
+	if err := json.Unmarshal([]byte(pubSubMsg), &userData); err != nil {
 		logger.Error().Err(err).Msg("error decoding data")
 		return err
 	}
 
-	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", os.Getenv("DB_HOST"), 5432, os.Getenv("DBUSER"), os.Getenv("DBPASS"), os.Getenv("DBNAME"))
+
+	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to connect to database")
 		return err
 	}
 	defer db.Close()
 
-	// Update email_trigger_time before sending email
-	if err := updateEmailTriggerTime(ctx, db, userData.UserID); err != nil {
-		logger.Error().Err(err).Msg("Failed to update email_trigger_time")
-		return err
-	}
-
 	// Initialize Mailgun client
-	domain := "babuaravind-gururaj.me"
-	apiKey := "68cce657fa6d365a396c07445aaf856f-f68a26c9-fb58f577"
+	domain := os.Getenv("SENDER_DOMAIN")
+	apiKey := os.Getenv("MAILGUN_API_KEY")
 	mg := mailgun.NewMailgun(domain, apiKey)
 	sender := "no-reply@babuaravind-gururaj.me"
 	subject := "Verify Your Email Address"
-	body := fmt.Sprintf("Please verify your email by clicking on the link: %s", userData.VerifyLink)
+	verifyLink := fmt.Sprintf("http://%s:8080/v1/user/verify?token=%s", domain, userData.Token)
+	body := fmt.Sprintf("Please verify your email by clicking on the link: %s", verifyLink)
 	recipient := userData.Email
+
+	fmt.Println("Verify link: ", verifyLink)
+	fmt.Println("Recipient: ", recipient)
 
 	// Create the message
 	message := mg.NewMessage(sender, subject, body, recipient)
@@ -79,13 +77,19 @@ func SendVerificationEmail(ctx context.Context, m pubsub.Message) error {
 		return err
 	}
 
+	// Update email_trigger_time before sending email
+	if err := updateEmailTriggerTime(ctx, db, userData.Token); err != nil {
+		logger.Error().Err(err).Msg("Failed to update email_trigger_time")
+		return err
+	}
+
 	logger.Info().Str("id", id).Str("response", resp).Msg("Sent email and updated email_trigger_time")
 	return nil
 }
 
 func updateEmailTriggerTime(ctx context.Context, db *sql.DB, userID string) error {
 	// SQL query to update email_trigger_time
-	_, err := db.ExecContext(ctx, "UPDATE verify_users SET email_trigger_time = now() WHERE id = $1", userID)
+	_, err := db.ExecContext(ctx, "UPDATE verify_users SET email_trigger_time = now() WHERE token = $1", userID)
 	if err != nil {
 		return err
 	}
