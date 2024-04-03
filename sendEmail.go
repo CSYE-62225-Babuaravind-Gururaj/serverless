@@ -60,7 +60,7 @@ func SendVerificationEmail(ctx context.Context, m pubsub.Message) error {
 	mg := mailgun.NewMailgun(domain, apiKey)
 	sender := "no-reply@babuaravind-gururaj.me"
 	subject := "Verify Your Email Address"
-	verifyLink := fmt.Sprintf("http://%s:8080/v1/user/verify?token=%s", domain, userData.Token)
+	verifyLink := fmt.Sprintf("https://%s/v1/user/verify?token=%s", domain, userData.Token)
 	body := fmt.Sprintf("Please verify your email by clicking on the link: %s", verifyLink)
 	recipient := userData.Email
 
