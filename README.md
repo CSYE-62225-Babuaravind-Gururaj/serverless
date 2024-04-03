@@ -22,7 +22,7 @@
 
         SENDER_DOMAIN (your domain)
 
-        Clone the repository: git clone https://github.com/yourusername/yourrepositoryname.git cd webapp (Ensure that you have created the env file as it would have been ignored by git)
+        Clone the repository: git clone https://github.com/yourusername/yourrepositoryname.git cd serverless (Ensure that you have created the env file as it would have been ignored by git)
 
     Install the Go dependencies: go mod tidy
 

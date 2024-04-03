@@ -19,35 +19,9 @@ jobs:
         run: go get .
       - name: Build
         run: |
-          GOOS=linux GOARCH=amd64 go build -v -o webapp .
+          GOOS=linux GOARCH=amd64 go build -v -o serverless .
           ls -la
       - name: Test with the Go CLI
         run: go test
-
-      - name: Packer setup
-        uses: hashicorp/setup-packer@main
-        id: setup
-        with:
-          version: latest
-
-      - name: Packer init
-        id: init
-        run: "packer init ./packer.pkr.hcl"
-
-      - name: Packer validation
-        id: validate
-        run: |
-          if ! packer validate ./packer.pkr.hcl ; then
-            echo "Validation failure"
-            exit 1
-          fi
-
-      - name: Packer fmt
-        id: fmt
-        run: |
-          if ! packer fmt -check ./packer.pkr.hcl ; then
-            echo "Formatting failure"
-            exit 1
-          fi
 
       - run: echo "Check successful"
