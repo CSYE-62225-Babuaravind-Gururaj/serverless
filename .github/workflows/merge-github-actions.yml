@@ -24,7 +24,4 @@ jobs:
       - name: Test with the Go CLI
         run: go test
 
-      - name: Run Go app
-        run: ./serverless
-
       - run: echo "Check successful"
